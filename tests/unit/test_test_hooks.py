@@ -20,8 +20,11 @@ def recorder(log, name):
     @contextlib.contextmanager
     def hook(env, test):
         log.append((name, 'enter', env))
-        yield
-        log.append((name, 'exit', env))
+        try:
+            yield
+        finally:
+            log.append((name, 'exit', env))
+    hook.__qualname__ = 'hook_' + name
     return hook
 
 
@@ -47,6 +50,17 @@ def test_adding_a_hook_twice_runs_it_once():
     assert log == [('a', 'enter', 'env'), ('a', 'exit', 'env')]
 
 
+def test_a_hook_redefined_by_a_reimport_replaces_the_old_one():
+    # RLTest re-imports a test file before each of its tests, so a hook
+    # defined there is a new function each time, with the same name.
+    log = []
+    add_test_hook(recorder(log, 'a'))
+    add_test_hook(recorder(log, 'b'))
+    add_test_hook(recorder(log, 'a'))
+    run_with_hooks(lambda env: None, 'env')
+    assert [entry[0] for entry in log] == ['a', 'b', 'b', 'a']
+
+
 def test_a_failing_test_still_exits_the_hooks():
     log = []
     add_test_hook(recorder(log, 'a'))
@@ -56,7 +70,7 @@ def test_a_failing_test_still_exits_the_hooks():
 
     with pytest.raises(ValueError, match='boom'):
         run_with_hooks(failing, 'env')
-    assert log == [('a', 'enter', 'env')]  # a contextmanager hook sees the exception
+    assert log == [('a', 'enter', 'env'), ('a', 'exit', 'env')]
 
 
 def test_a_hook_error_fails_the_test():
