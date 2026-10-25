@@ -267,3 +267,23 @@ def test_example_3():
     env.assertEqual(con2.get('x'), '1')
 
 ```
+
+### Test hooks
+
+`add_test_hook(hook)` runs `hook(env)` around every function test that takes an
+`env`. The hook returns a context manager; failed assertions and exceptions in
+it fail the test. For example, to log how long each test takes:
+
+```python
+import contextlib
+import time
+from RLTest import add_test_hook
+
+@contextlib.contextmanager
+def timed(env):
+    start = time.monotonic()
+    yield
+    env.debugPrint('took %.1f s' % (time.monotonic() - start), force=True)
+
+add_test_hook(timed)
+```
