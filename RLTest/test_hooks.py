@@ -6,7 +6,9 @@ _hooks = []
 
 def add_test_hook(hook):
     """
-    Run ``hook(env)`` around every function test that takes an ``env``.
+    Run ``hook(env, test)`` around every function test that takes an
+    ``env``; ``test`` is the test function, so a hook can honour markers set
+    on it.
 
     ``hook`` returns a context manager, such as a generator decorated with
     ``contextlib.contextmanager``: it is entered before the test and exited
@@ -21,5 +23,5 @@ def add_test_hook(hook):
 def run_with_hooks(target, env):
     with contextlib.ExitStack() as stack:
         for hook in list(_hooks):
-            stack.enter_context(hook(env))
+            stack.enter_context(hook(env, target))
         return target(env)

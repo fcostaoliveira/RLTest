@@ -18,7 +18,7 @@ def no_hooks():
 
 def recorder(log, name):
     @contextlib.contextmanager
-    def hook(env):
+    def hook(env, test):
         log.append((name, 'enter', env))
         yield
         log.append((name, 'exit', env))
@@ -61,10 +61,27 @@ def test_a_failing_test_still_exits_the_hooks():
 
 def test_a_hook_error_fails_the_test():
     @contextlib.contextmanager
-    def check(env):
+    def check(env, test):
         yield
         raise AssertionError('hook check failed')
 
     add_test_hook(check)
     with pytest.raises(AssertionError, match='hook check failed'):
         run_with_hooks(lambda env: None, 'env')
+
+
+def test_a_hook_gets_the_test_function():
+    seen = []
+
+    @contextlib.contextmanager
+    def hook(env, test):
+        seen.append(getattr(test, 'marker', None))
+        yield
+
+    def marked(env):
+        pass
+    marked.marker = 'skip-check'
+
+    add_test_hook(hook)
+    run_with_hooks(marked, 'env')
+    assert seen == ['skip-check']
