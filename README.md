@@ -270,9 +270,9 @@ def test_example_3():
 
 ### Test hooks
 
-`add_test_hook(hook)` runs `hook(env)` around every function test that takes an
-`env`. The hook returns a context manager; failed assertions and exceptions in
-it fail the test. For example, to log how long each test takes:
+`add_test_hook(hook)` runs `hook(env, test)` around every function test that
+takes an `env`, where `test` is the test function. The hook returns a context
+manager; failed assertions and exceptions in it fail the test. For example, to log how long each test takes:
 
 ```python
 import contextlib
@@ -280,10 +280,10 @@ import time
 from RLTest import add_test_hook
 
 @contextlib.contextmanager
-def timed(env):
+def timed(env, test):
     start = time.monotonic()
     yield
-    env.debugPrint('took %.1f s' % (time.monotonic() - start), force=True)
+    env.debugPrint('%s took %.1f s' % (test.__name__, time.monotonic() - start), force=True)
 
 add_test_hook(timed)
 ```
