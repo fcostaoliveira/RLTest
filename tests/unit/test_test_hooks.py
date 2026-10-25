@@ -1,5 +1,6 @@
 """Unit tests for add_test_hook."""
 import contextlib
+import types
 
 import pytest
 
@@ -22,10 +23,29 @@ def recorder(log, name):
         log.append((name, 'enter', env))
         try:
             yield
-        finally:
-            log.append((name, 'exit', env))
-    hook.__qualname__ = 'hook_' + name
+        except BaseException as error:
+            log.append((name, 'exit', type(error).__name__))
+            raise
+        log.append((name, 'exit', env))
     return hook
+
+
+TEST_FILE = '''
+import contextlib
+
+@contextlib.contextmanager
+def hook(env, test):
+    LOG.append(TAG)
+    yield
+'''
+
+
+def import_test_file(log, tag):
+    """Run TEST_FILE as RLTest's loader does, as a fresh module each time."""
+    module = types.ModuleType('test_file')
+    module.LOG, module.TAG = log, tag
+    exec(compile(TEST_FILE, 'test_file.py', 'exec'), module.__dict__)
+    return module.hook
 
 
 def test_no_hooks_runs_the_test():
@@ -50,15 +70,24 @@ def test_adding_a_hook_twice_runs_it_once():
     assert log == [('a', 'enter', 'env'), ('a', 'exit', 'env')]
 
 
-def test_a_hook_redefined_by_a_reimport_replaces_the_old_one():
-    # RLTest re-imports a test file before each of its tests, so a hook
-    # defined there is a new function each time, with the same name.
+def test_a_hook_from_a_reimported_test_file_replaces_the_old_one():
     log = []
-    add_test_hook(recorder(log, 'a'))
-    add_test_hook(recorder(log, 'b'))
-    add_test_hook(recorder(log, 'a'))
+    add_test_hook(import_test_file(log, 'first import'))
+    add_test_hook(recorder(log, 'other'))
+    add_test_hook(import_test_file(log, 'second import'))
     run_with_hooks(lambda env: None, 'env')
-    assert [entry[0] for entry in log] == ['a', 'b', 'b', 'a']
+    # One copy, the newer, still first.
+    assert log == ['second import', ('other', 'enter', 'env'), ('other', 'exit', 'env')]
+
+
+def test_distinct_hooks_that_share_a_name_all_run():
+    log = []
+    add_test_hook(recorder(log, 'a'))  # closures from one factory
+    add_test_hook(recorder(log, 'b'))
+    add_test_hook(lambda env, test: recorder(log, 'c')(env, test))
+    add_test_hook(lambda env, test: recorder(log, 'd')(env, test))
+    run_with_hooks(lambda env: None, 'env')
+    assert [name for name, step, _ in log if step == 'enter'] == ['a', 'b', 'c', 'd']
 
 
 def test_a_failing_test_still_exits_the_hooks():
@@ -70,7 +99,7 @@ def test_a_failing_test_still_exits_the_hooks():
 
     with pytest.raises(ValueError, match='boom'):
         run_with_hooks(failing, 'env')
-    assert log == [('a', 'enter', 'env'), ('a', 'exit', 'env')]
+    assert log == [('a', 'enter', 'env'), ('a', 'exit', 'ValueError')]
 
 
 def test_a_hook_error_fails_the_test():
