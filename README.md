@@ -272,7 +272,10 @@ def test_example_3():
 
 `add_test_hook(hook)` runs `hook(env, test)` around every function test that
 takes an `env`, where `test` is the test function. The hook returns a context
-manager; failed assertions and exceptions in it fail the test. For example, to log how long each test takes:
+manager; failed assertions and exceptions in it fail the test. A top-level
+function can be added from a test file; add a lambda, closure or other callable
+from a module that is imported once. For example, to log how long each test
+takes:
 
 ```python
 import contextlib
@@ -283,7 +286,8 @@ from RLTest import add_test_hook
 def timed(env, test):
     start = time.monotonic()
     yield
-    env.debugPrint('%s took %.1f s' % (test.__name__, time.monotonic() - start), force=True)
+    elapsed = time.monotonic() - start
+    env.debugPrint('%s took %.1f s' % (test.__name__, elapsed), force=True)
 
 add_test_hook(timed)
 ```
