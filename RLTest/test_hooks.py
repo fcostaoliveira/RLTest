@@ -13,11 +13,21 @@ def add_test_hook(hook):
     ``hook`` returns a context manager, such as a generator decorated with
     ``contextlib.contextmanager``: it is entered before the test and exited
     after it. Failed assertions and exceptions in the hook fail the test, as
-    the test's own would. Hooks run in the order added; adding one again does
-    nothing.
+    the test's own would. Hooks run in the order added. RLTest re-imports a
+    test file before each of its tests, so a hook with the same module and
+    name as one already added replaces it rather than adding another.
     """
-    if hook not in _hooks:
-        _hooks.append(hook)
+    key = _key(hook)
+    for i, added in enumerate(_hooks):
+        if added is hook or _key(added) == key:
+            _hooks[i] = hook
+            return
+    _hooks.append(hook)
+
+
+def _key(hook):
+    name = getattr(hook, '__qualname__', None)
+    return (getattr(hook, '__module__', None), name) if name else (id(hook),)
 
 
 def run_with_hooks(target, env):
